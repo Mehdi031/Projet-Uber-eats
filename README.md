@@ -1,86 +1,81 @@
-Projet de Dispatching NoSQL (Uber Eats) - Redis vs. MongoDB
+🍽️ Projet de Dispatching NoSQL (Uber Eats) – Redis vs MongoDB
 
-Ce dépôt contient le code source d'un projet universitaire comparant deux implémentations d'un système de dispatching de livraison (type "Uber Eats"). L'objectif est de comparer une approche "full Redis" et une approche "full MongoDB".
+Ce projet universitaire compare deux architectures complètes d’un système de dispatching “type Uber Eats”, l’une basée exclusivement sur Redis, l’autre sur MongoDB.
 
-Les deux systèmes sont totalement indépendants et gèrent un écosystème concurrent multi-acteurs :
+Chaque architecture simule un écosystème multi-acteurs en interaction :
+	•	🧑‍💻 Client : Passe une commande interactive
+	•	🍽️ Restaurant : Reçoit la commande et prépare les plats
+	•	🛵 Livreur : Met à jour sa position GPS et attend des missions
+	•	🤖 Dispatcher : Assigne chaque commande au livreur disponible le plus proche
 
-Client : Passe une commande interactive.
+La logique de dispatching est géo-spatiale :
+	•	Redis → GEOSEARCH
+	•	MongoDB → $geoNear
 
-Restaurant : Reçoit la commande et la prépare.
+Les deux systèmes fonctionnent indépendamment et gèrent plusieurs livreurs en parallèle.
 
-Livreur : Met à jour sa position GPS et attend des missions.
+⸻
 
-Dispatcher : Assigne les nouvelles commandes au livreur disponible le plus proche.
+⚙️ 1. Prérequis & Installation
 
-La logique de dispatching est géo-spatiale (GEOSEARCH dans Redis, $geoNear dans MongoDB) et capable de gérer plusieurs livreurs en parallèle.
-
-⚙️ 1. Prérequis et Installation
-
-Avant de lancer les applications, vous devez configurer votre environnement.
-
-a. Cloner le dépôt
+🔁 Cloner le dépôt
 
 git clone [URL_DE_VOTRE_DEPOT]
 cd [NOM_DU_DOSSIER]
 
+📦 Installer les dépendances
 
-b. Installer les dépendances
+Assurez-vous d’avoir Python 3.10+ installé.
 
-Assurez-vous d'avoir Python 3.10+ installé.
-
-# Créez un environnement virtuel (recommandé)
+# (Optionnel) Créer un environnement virtuel
 python -m venv venv
-source venv/bin/activate  # Sur macOS/Linux
-# venv\Scripts\activate   # Sur Windows
+source venv/bin/activate      # macOS/Linux
+# venv\Scripts\activate       # Windows
 
-# Installez les paquets requis
+# Installer les paquets requis
 pip install -r requirements.txt
 
+🔐 Configuration du fichier .env
 
-c. Fichier d'Environnement (.env)
-
-Créez un fichier nommé .env à la racine du projet. Il doit contenir vos clés de connexion.
-
-Copiez ce modèle dans votre fichier .env :
+Créez un fichier .env à la racine du projet et ajoutez :
 
 # --- MongoDB Atlas ---
-# Remplacez par votre propre URI de connexion
 MONGO_URI_ATLAS="mongodb+srv://user:pass@cluster.mongodb.net/..."
 MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/..."
-
-# Nom de votre base de données
 MONGO_DB="ubereats_poc"
 
-# --- Redis (en local) ---
+# --- Redis (local) ---
 REDIS_HOST="127.0.0.1"
 REDIS_PORT="6379"
 
 
-🚀 2. Lancement de l'Application "Full Redis" (Architecture 1)
+⸻
 
-Cette version utilise Redis pour tout : Pub/Sub pour la messagerie, GEOADD/GEOSEARCH pour la localisation, et HASH pour l'état des livreurs.
+🚀 2. Lancer l’Architecture “Full Redis”
 
-Vous aurez besoin de 4 terminaux ouverts dans le dossier du projet.
+Cette architecture utilise Redis pour tout :
+Pub/Sub, géo-localisation (GEOADD, GEOSEARCH), gestion des états, etc.
 
-Ordre de lancement : Lancez les workers (Resto, Livreur, Dispatcher) d'abord, puis le Client en dernier.
+Vous aurez besoin de 4 terminaux dans le dossier du projet.
 
-Terminal 1 : Le Restaurant
+⸻
 
-Ce worker s'abonne à son canal privé et attend les commandes.
+🧩 Terminal 1 : Restaurant
 
 python restaurant_worker.py
 
+Sortie attendue :
 
-Sortie attendue : 🍕 Restaurant R55 en attente de commandes sur 'orders:restaurant:R55'...
+🍕 Restaurant R55 en attente de commandes sur 'orders:restaurant:R55'...
 
-(Note : Pour tester le "Sushi Tokyo", modifiez la variable RESTAURANT_ID dans le script et lancez-le dans un autre terminal.)
 
-Terminal 2 : Le(s) Livreur(s)
+⸻
 
-Ce worker asynchrone met à jour son GPS et écoute les jobs. Vous pouvez en lancer plusieurs !
+🛵 Terminal 2 : Livreur(s)
+
+Vous pouvez lancer plusieurs livreurs.
 
 python courier_worker_redis.py
-
 
 Sortie attendue :
 
@@ -89,95 +84,90 @@ Livreur L1234 démarré.
 [L1234] Position mise à jour (disponible).
 
 
-Terminal 3 : Le Dispatcher (Cerveau)
+⸻
 
-Ce worker s'abonne au canal central et assigne les commandes.
+🤖 Terminal 3 : Dispatcher (Cerveau)
 
 python dispatcher_worker_redis.py
 
+Sortie attendue :
 
-Sortie attendue : 🤖 Dispatcher Uber Eats (Redis) démarré. En attente sur 'orders:dispatch'...
+🤖 Dispatcher Uber Eats (Redis) démarré. En attente sur 'orders:dispatch'...
 
-Terminal 4 : Le Client (Le Déclencheur)
 
-Une fois les 3 workers lancés, simulez un client :
+⸻
+
+🧑‍💻 Terminal 4 : Client
 
 python create_order_interactive_redis.py
 
+Vous verrez les autres terminaux réagir en temps réel.
 
-Suivez les instructions dans le terminal pour passer commande. Vous verrez les 3 autres terminaux réagir en direct.
+⸻
 
-🗂️ 3. Lancement de l'Application "Full MongoDB" (Architecture 2)
+🗂️ 3. Lancer l’Architecture “Full MongoDB”
 
-Cette version utilise MongoDB comme "source de vérité". La communication se fait via les Change Streams et l'état des documents (statut: "CREATED").
+Cette architecture utilise MongoDB comme source de vérité, avec Change Streams pour la communication.
 
-Vous aurez besoin de 4 terminaux (plus une étape de préparation).
+Elle nécessite également 4 terminaux + un script de préparation.
 
-Étape 0 : Préparation (Une seule fois)
+⸻
 
-Ce script peuple la base restaurants avec les menus et crée les index géo-spatiaux.
+🛠️ Étape 0 : Préparation de la base (à faire une seule fois)
 
 python seed_restaurants_with_menu.py
 
 
-Sortie attendue : Restaurants et index OK.
+⸻
 
-Étape 1 : Ouvrir 4 Terminaux
-
-Lancez les workers d'abord, puis le client.
-
-Terminal 1 : Le Restaurant
-
-Ce worker "observe" (.watch()) la collection ubereats pour les commandes le concernant.
+🍽️ Terminal 1 : Restaurant
 
 python restaurant_worker_mongo.py
 
 
-Sortie attendue : 🍕 Restaurant R55 en attente de commandes (via Mongo Change Stream)...
+⸻
 
-Terminal 2 : Le(s) Livreur(s)
-
-Ce worker utilise threading pour mettre à jour son GPS (UPDATE_ONE) et "observer" (.watch()) les assignations en parallèle. Vous pouvez en lancer plusieurs.
+🛵 Terminal 2 : Livreur(s)
 
 python courier_worker_mongo.py
 
 
-Sortie attendue :
+⸻
 
-Livreur L5678 démarré.
-[L5678] En écoute de jobs (sur la collection 'ubereats')...
-[L5678] Position mise à jour (disponible).
-
-
-Terminal 3 : Le Dispatcher (Cerveau)
-
-Ce worker "observe" les nouvelles commandes (statut: "CREATED") et utilise $geoNear pour trouver un livreur.
+🤖 Terminal 3 : Dispatcher
 
 python dispatcher_worker_mongo.py
 
 
-Sortie attendue : 🤖 Dispatcher Uber Eats (Mongo) démarré. En attente de commandes...
+⸻
 
-Terminal 4 : Le Client (Le Déclencheur)
-
-Une fois les 3 workers lancés, simulez un client :
+🧑‍💻 Terminal 4 : Client
 
 python create_order_interactive_mongo.py
 
+Un INSERT_ONE déclenche automatiquement les autres services via Change Streams.
 
-Ce script va faire un INSERT_ONE dans la base, ce qui déclenchera les autres terminaux.
+⸻
 
 📊 4. Scripts Complémentaires
 
-Test Unitaire (Redis)
-
-Pour valider la logique du client interactif Redis sans le lancer :
+✔️ Tests unitaires Redis
 
 python test_redis_client.py
 
-
-Analyse (MongoDB)
-
-Pour exécuter la fonctionnalité "Chiffre d'Affaires" (discutée dans le rapport) :
+📈 Analyse MongoDB (Chiffre d’affaires)
 
 python analytics_mongo.py
+
+
+⸻
+
+🎯 Conclusion
+
+Ce projet met en parallèle deux approches diamétralement opposées pour un système de dispatching en temps réel :
+	•	Redis → rapidité, simplicité, faible latence
+	•	MongoDB → robustesse, persistance, puissance de requêtage
+
+Il illustre comment chaque technologie peut être exploitée pour répondre à des problématiques de géo-localisation et de coordination multi-acteurs.
+
+�
